@@ -10,6 +10,7 @@ import sys
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 from typing import Optional
 from mcp.server.mcpserver import MCPServer
 
@@ -96,6 +97,48 @@ def pause_adset(adset_id: str) -> str:
     except Exception as e:
         return f"Failed to pause adset: {e}"
 
+@app.tool()
+def activate_adset(adset_id: str) -> str:
+    """
+    Activate or resume a paused Meta Adset.
+    
+    Args:
+        adset_id: The numeric ID of the adset to resume.
+    """
+    token, _, api_version = get_meta_config()
+    url = f"https://graph.facebook.com/{api_version}/{adset_id}"
+    payload = urllib.parse.urlencode({"status": "ACTIVE", "access_token": token}).encode()
+    req = urllib.request.Request(url, data=payload, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+            if data.get("success"):
+                return f"Successfully ACTIVATED adset ID: {adset_id}."
+            return f"Update returned: {data}"
+    except Exception as e:
+        return f"Failed to activate adset: {e}"
+
+@app.tool()
+def update_adset_budget(adset_id: str, daily_budget_cents: int) -> str:
+    """
+    Adjust the daily budget for a Meta Adset.
+    
+    Args:
+        adset_id: The numeric ID of the adset to update.
+        daily_budget_cents: New daily budget in account currency subunits (e.g. cents, or IDR).
+    """
+    token, _, api_version = get_meta_config()
+    url = f"https://graph.facebook.com/{api_version}/{adset_id}"
+    payload = urllib.parse.urlencode({"daily_budget": daily_budget_cents, "access_token": token}).encode()
+    req = urllib.request.Request(url, data=payload, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+            if data.get("success"):
+                return f"Successfully updated daily budget for adset ID {adset_id} to {daily_budget_cents}."
+            return f"Update returned: {data}"
+    except Exception as e:
+        return f"Failed to update adset budget: {e}"
+
 if __name__ == "__main__":
-    import urllib.parse
     app.run(transport="stdio")
