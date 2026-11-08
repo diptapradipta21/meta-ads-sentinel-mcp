@@ -12,9 +12,24 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from typing import Optional
-from mcp.server.mcpserver import MCPServer
+try:
+    from mcp.server.mcpserver import MCPServer
+    app = MCPServer("meta-ads-sentinel-mcp")
+except ImportError:
+    class DummyMCPServer:
+        """Fallback lightweight mock when mcp package is not installed."""
+        def __init__(self, name: str = ""):
+            self.name = name
 
-app = MCPServer("meta-ads-sentinel-mcp")
+        def tool(self):
+            def decorator(fn):
+                return fn
+            return decorator
+
+        def run(self, **kwargs):
+            raise RuntimeError("mcp package is not installed. Install with 'pip install mcp'.")
+
+    app = DummyMCPServer("meta-ads-sentinel-mcp")
 
 def get_meta_config():
     access_token = os.environ.get("META_ACCESS_TOKEN", "")
@@ -127,6 +142,9 @@ def update_adset_budget(adset_id: str, daily_budget_cents: int) -> str:
         adset_id: The numeric ID of the adset to update.
         daily_budget_cents: New daily budget in account currency subunits (e.g. cents, or IDR).
     """
+    if daily_budget_cents <= 0:
+        return "Failed to update adset budget: daily_budget_cents must be a positive integer."
+
     token, _, api_version = get_meta_config()
     url = f"https://graph.facebook.com/{api_version}/{adset_id}"
     payload = urllib.parse.urlencode({"daily_budget": daily_budget_cents, "access_token": token}).encode()
