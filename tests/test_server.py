@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
+import io
 import json
-import unittest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 import sys
+import unittest
+import urllib.error
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import server
+
 
 class TestMetaAdsSentinelMCP(unittest.TestCase):
     def setUp(self):
@@ -33,7 +36,7 @@ class TestMetaAdsSentinelMCP(unittest.TestCase):
                 server.get_meta_config()
 
     @patch("urllib.request.urlopen")
-    def test_get_campaign_insights_success(self, mock_urlopen):
+    def test_get_campaign_insights_passes_level_campaign(self, mock_urlopen):
         mock_resp = MagicMock()
         mock_resp.read.return_value = json.dumps({"data": [{"campaign_name": "TOFU Campaign", "spend": "150.00"}]}).encode("utf-8")
         mock_resp.__enter__.return_value = mock_resp
@@ -42,6 +45,12 @@ class TestMetaAdsSentinelMCP(unittest.TestCase):
         res = server.get_campaign_insights("last_7d")
         self.assertIn("TOFU Campaign", res)
         self.assertIn("150.00", res)
+        called_req = mock_urlopen.call_args[0][0]
+        self.assertIn("level=campaign", called_req.full_url)
+
+    def test_get_campaign_insights_invalid_level(self):
+        res = server.get_campaign_insights("last_7d", level="invalid")
+        self.assertIn("Invalid insight level", res)
 
     @patch("urllib.request.urlopen")
     def test_pause_and_activate_adset_success(self, mock_urlopen):
@@ -56,6 +65,29 @@ class TestMetaAdsSentinelMCP(unittest.TestCase):
         activate_res = server.activate_adset("987654321")
         self.assertIn("Successfully ACTIVATED adset ID: 987654321", activate_res)
 
+    def test_adset_id_validation(self):
+        self.assertIn("non-empty numeric ID", server.pause_adset("../bad"))
+        self.assertIn("non-empty numeric ID", server.activate_adset(""))
+        self.assertIn("non-empty numeric ID", server.update_adset_budget("abc", 1000))
+
+    @patch("urllib.request.urlopen")
+    def test_http_error_parses_meta_json_message(self, mock_urlopen):
+        err_body = json.dumps({"error": {"message": "Budget too low", "code": 100}}).encode("utf-8")
+        http_err = urllib.error.HTTPError(
+            url="https://graph.facebook.com/v21.0/987654321",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(err_body),
+        )
+        mock_urlopen.side_effect = http_err
+        try:
+            res = server.update_adset_budget("987654321", 10)
+            self.assertIn("Meta code 100", res)
+            self.assertIn("Budget too low", res)
+        finally:
+            http_err.close()
+
     def test_update_adset_budget_validation(self):
         res = server.update_adset_budget("987654321", -500)
         self.assertIn("daily_budget_cents must be a positive integer", res)
@@ -69,6 +101,7 @@ class TestMetaAdsSentinelMCP(unittest.TestCase):
 
         res = server.update_adset_budget("987654321", 5000000)
         self.assertIn("Successfully updated daily budget for adset ID 987654321", res)
+
 
 if __name__ == "__main__":
     unittest.main()

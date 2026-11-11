@@ -9,11 +9,45 @@
 ---
 
 ## 🛠️ Available MCP Tools
-- `get_campaign_insights`: Fetches aggregate ad spend, CPA, CPM, and ROAS across preset date windows.
-- `list_adsets_health`: Identifies high-frequency fatigue (>3.5x) and high CPL across active adsets.
-- `pause_adset`: Emergency pause underperforming campaigns directly from Claude.
-- `activate_adset`: Resume or activate paused Meta Adsets.
-- `update_adset_budget`: Dynamically adjust adset daily budget in account currency subunits.
+- `get_campaign_insights(date_preset="last_7d", level="campaign")`: Fetches aggregate ad spend, impressions, clicks, CPC, CPM, and actions at `account`, `campaign`, `adset`, or `ad` level.
+- `list_adsets_health()`: Identifies high-frequency fatigue (>3.5x) and high CPL across active adsets.
+- `pause_adset(adset_id)`: Emergency pause underperforming adsets directly from Claude.
+- `activate_adset(adset_id)`: Resume or activate paused Meta Adsets.
+- `update_adset_budget(adset_id, daily_budget_cents)`: Dynamically adjust adset daily budget in account currency subunits.
+
+---
+
+## ⚙️ Configuration
+
+| Environment Variable | Description | Default |
+|---|---|---|
+| `META_ACCESS_TOKEN` | Meta Marketing API access token | *(Required)* |
+| `META_AD_ACCOUNT_ID` | Ad Account ID (with or without `act_` prefix) | *(Required)* |
+| `META_API_VERSION` | Graph API version | `v21.0` |
+
+### Claude Desktop Config
+```json
+{
+  "mcpServers": {
+    "meta-ads-sentinel": {
+      "command": "python3",
+      "args": ["/path/to/meta-ads-sentinel-mcp/server.py"],
+      "env": {
+        "META_ACCESS_TOKEN": "YOUR_TOKEN",
+        "META_AD_ACCOUNT_ID": "act_1234567890",
+        "META_API_VERSION": "v21.0"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🧪 Running Tests
+```bash
+python3 -m unittest discover -s tests -v
+```
 
 ---
 
