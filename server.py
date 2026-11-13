@@ -197,5 +197,60 @@ def update_adset_budget(adset_id: str, daily_budget_cents: int) -> str:
     )
 
 
-if __name__ == "__main__":
+@app.tool()
+def check_ad_account_status() -> str:
+    """
+    Check Meta Ad Account status, currency, and API token validity.
+    """
+    _, ad_account_id, _ = get_meta_config()
+    fields = "name,account_status,currency,timezone_name,amount_spent"
+    res = meta_api_request(f"{ad_account_id}", {"fields": fields})
+    if "error" in res:
+        return f"Meta API Error: {res['error']}"
+
+    status_map = {1: "ACTIVE", 2: "DISABLED", 3: "UNSETTLED", 7: "PENDING_RISK_REVIEW"}
+    raw_status = res.get("account_status", 0)
+    status_label = status_map.get(raw_status, f"CODE_{raw_status}")
+
+    return (
+        f"Ad Account {ad_account_id} ({res.get('name', 'unnamed')}): Status={status_label}, "
+        f"Currency={res.get('currency', 'USD')}, Timezone={res.get('timezone_name', 'UTC')}."
+    )
+
+
+def main() -> None:
+    import argparse
+    import sys
+    parser = argparse.ArgumentParser(description="meta-ads-sentinel-mcp MCP Server & Diagnostic CLI")
+    parser.add_argument("--check", action="store_true", help="Verify Meta API credentials and ad account status")
+    parser.add_argument("--insights", action="store_true", help="Fetch 7-day campaign level performance summary")
+    parser.add_argument("--list-adsets", action="store_true", help="Fetch active adsets health status")
+    parser.add_argument("--json", action="store_true", help="Output machine-readable JSON format")
+    args = parser.parse_args()
+
+    if args.check:
+        res = check_ad_account_status()
+        ok = not res.startswith("Meta API Error")
+        if args.json:
+            print(json.dumps({"ok": ok, "detail": res}, indent=2))
+        else:
+            print("[*] Checking Meta Ad Account connection...")
+            print(res)
+        sys.exit(0 if ok else 1)
+
+    if args.insights:
+        res = get_campaign_insights(date_preset="last_7d", level="campaign")
+        print(res)
+        sys.exit(0)
+
+    if args.list_adsets:
+        res = list_adsets_health()
+        print(res)
+        sys.exit(0)
+
     app.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()
+

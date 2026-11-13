@@ -103,5 +103,42 @@ class TestMetaAdsSentinelMCP(unittest.TestCase):
         self.assertIn("Successfully updated daily budget for adset ID 987654321", res)
 
 
+    @patch("urllib.request.urlopen")
+    def test_check_ad_account_status_success(self, mock_urlopen):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "name": "EELIT Agency",
+            "account_status": 1,
+            "currency": "SGD",
+            "timezone_name": "Asia/Singapore"
+        }).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        res = server.check_ad_account_status()
+        self.assertIn("act_1234567890", res)
+        self.assertIn("EELIT Agency", res)
+        self.assertIn("Status=ACTIVE", res)
+        self.assertIn("Currency=SGD", res)
+
+    @patch("urllib.request.urlopen")
+    def test_check_ad_account_status_error(self, mock_urlopen):
+        err_body = json.dumps({"error": {"message": "Invalid OAuth token", "code": 190}}).encode("utf-8")
+        http_err = urllib.error.HTTPError(
+            url="https://graph.facebook.com/v21.0/act_1234567890",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(err_body),
+        )
+        mock_urlopen.side_effect = http_err
+        try:
+            res = server.check_ad_account_status()
+            self.assertIn("Meta API Error", res)
+            self.assertIn("Invalid OAuth token", res)
+        finally:
+            http_err.close()
+
 if __name__ == "__main__":
+
     unittest.main()
